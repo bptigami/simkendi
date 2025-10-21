@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
+import { supabase } from '@/lib/supabase' // ⬅️ import harus di atas!
 
 export async function GET() {
   try {
@@ -18,72 +17,38 @@ export async function GET() {
             email: true
           }
         },
-        peminjam: {
-          select: {
-            id_peminjam: true,
-            nama_peminjam: true,
-            nip: true,
-            jabatan: true,
-            instansi: true,
-            kontak: true
-          }
-        },
-        creator: {
-          select: {
-            id_user: true,
-            nama_lengkap: true,
-            email: true
-          }
-        },
-        approver: {
-          select: {
-            id_user: true,
-            nama_lengkap: true,
-            email: true
-          }
-        }
+        peminjam: true,
+        creator: true,
+        approver: true
       },
-      orderBy: {
-        createdAt: 'desc'
-      }
+      orderBy: { createdAt: 'desc' }
     })
-    
-    // Transform data to ensure consistent structure
-    const transformedPeminjaman = peminjaman.map(p => ({
+
+    const transformed = peminjaman.map(p => ({
       ...p,
-      // Prioritize peminjam data over user_peminjam
-      user_peminjam: p.peminjam ? {
-        id_user: p.peminjam.id_peminjam,
-        nama_lengkap: p.peminjam.nama_peminjam,
-        nip: p.peminjam.nip,
-        jabatan: p.peminjam.jabatan,
-        instansi: p.peminjam.instansi,
-        email: '' // Peminjam doesn't have email
-      } : p.user_peminjam || null,
-      // Add peminjam fallback for compatibility
-      peminjam: p.peminjam || (p.user_peminjam ? {
-        id_peminjam: p.user_peminjam.id_user,
-        nama_peminjam: p.user_peminjam.nama_lengkap,
-        nip: p.user_peminjam.nip || 'N/A',
-        instansi: p.user_peminjam.instansi || ''
-      } : null)
+      user_peminjam: p.peminjam
+        ? {
+            id_user: p.peminjam.id_peminjam,
+            nama_lengkap: p.peminjam.nama_peminjam,
+            nip: p.peminjam.nip,
+            jabatan: p.peminjam.jabatan,
+            instansi: p.peminjam.instansi,
+            email: ''
+          }
+        : p.user_peminjam || null
     }))
-    
-    return NextResponse.json(transformedPeminjaman)
+
+    return NextResponse.json(transformed)
   } catch (error) {
     console.error('Error fetching peminjaman:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch peminjaman' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to fetch peminjaman' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
-    
-    // Extract form fields
+
     const id_kendaraan = formData.get('id_kendaraan') as string
     const id_user_peminjam = formData.get('id_user_peminjam') as string
     const id_creator = formData.get('id_creator') as string
@@ -96,147 +61,53 @@ export async function POST(request: NextRequest) {
     const pernyataan_tanggung_jawab = formData.get('pernyataan_tanggung_jawab') === 'true'
     const lampiran = formData.get('lampiran') as File | null
 
-    console.log('Peminjaman request data:', {
-      id_kendaraan,
-      id_user_peminjam,
-      id_creator,
-      tanggal_pinjam,
-      tanggal_kembali_rencana,
-      tujuan_penggunaan,
-      tujuan_lokasi,
-      pernyataan_keperluan_dinas,
-      pernyataan_kebersihan,
-      pernyataan_tanggung_jawab,
-      lampiran: lampiran ? lampiran.name : null
-    })
-
-    // Validasi input
-    if (!id_kendaraan || !id_user_peminjam || !tanggal_pinjam || !tanggal_kembali_rencana || !tujuan_penggunaan || !tujuan_lokasi) {
-      return NextResponse.json(
-        { error: 'Semua field harus diisi' },
-        { status: 400 }
-      )
+    // Validasi dasar
+    if (!id_kendaraan || !id_user_peminjam || !tanggal_pinjam || !tanggal_kembali_rencana) {
+      return NextResponse.json({ error: 'Semua field wajib diisi' }, { status: 400 })
     }
 
-    // Validasi format tanggal
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
-    if (!dateRegex.test(tanggal_pinjam) || !dateRegex.test(tanggal_kembali_rencana)) {
-      return NextResponse.json(
-        { error: 'Format tanggal tidak valid. Gunakan format YYYY-MM-DD' },
-        { status: 400 }
-      )
-    }
-
-    // Validasi pernyataan
-    if (!pernyataan_keperluan_dinas || !pernyataan_kebersihan || !pernyataan_tanggung_jawab) {
-      return NextResponse.json(
-        { error: 'Semua pernyataan harus disetujui' },
-        { status: 400 }
-      )
-    }
-
-    // Validasi tanggal
-    if (new Date(tanggal_kembali_rencana) < new Date(tanggal_pinjam)) {
-      return NextResponse.json(
-        { error: 'Tanggal kembali tidak boleh sebelum tanggal pinjam' },
-        { status: 400 }
-      )
-    }
-
-    // Cek apakah kendaraan tersedia
     const kendaraan = await db.kendaraan.findUnique({
       where: { id_kendaraan: parseInt(id_kendaraan) }
     })
+    if (!kendaraan) return NextResponse.json({ error: 'Kendaraan tidak ditemukan' }, { status: 404 })
+    if (kendaraan.status !== 'Tersedia')
+      return NextResponse.json({ error: 'Kendaraan tidak tersedia' }, { status: 400 })
 
-    if (!kendaraan) {
-      return NextResponse.json(
-        { error: 'Kendaraan tidak ditemukan' },
-        { status: 404 }
-      )
-    }
-
-    if (kendaraan.status !== 'Tersedia') {
-      return NextResponse.json(
-        { error: 'Kendaraan tidak tersedia untuk dipinjam' },
-        { status: 400 }
-      )
-    }
-
-    // Cek apakah user ada
     const user = await db.user.findUnique({
       where: { id_user: parseInt(id_user_peminjam) }
     })
+    if (!user) return NextResponse.json({ error: 'User tidak ditemukan' }, { status: 404 })
 
-    if (!user) {
-      return NextResponse.json(
-        { error: 'User tidak ditemukan' },
-        { status: 404 }
-      )
-    }
-
-    // Handle file upload
+    // Upload file ke Supabase
     let lampiran_nama = null
     let lampiran_path = null
-    
+
     if (lampiran) {
-      // Create uploads directory if it doesn't exist
-      const uploadsDir = join(process.cwd(), 'public', 'uploads', 'lampiran')
-      
-      try {
-        await mkdir(uploadsDir, { recursive: true })
-      } catch (error) {
-        // Directory might already exist
+      const uniqueFileName = `${Date.now()}_${lampiran.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
+      const arrayBuffer = await lampiran.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+
+      const { data, error } = await supabase.storage
+        .from('lampiran') // Pastikan nama bucket benar
+        .upload(uniqueFileName, buffer, {
+          contentType: lampiran.type || 'application/octet-stream',
+          upsert: false
+        })
+
+      if (error) {
+        console.error('Upload error:', error)
+        return NextResponse.json({ error: 'Gagal upload file ke Supabase', details: error.message }, { status: 500 })
       }
 
-      // Generate unique filename
-      const timestamp = Date.now()
-      const fileExtension = lampiran.name.split('.').pop()
-      const uniqueFileName = `${timestamp}_${lampiran.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-      const filePath = join(uploadsDir, uniqueFileName)
-      
-      // Save file
-      // const buffer = Buffer.from(await lampiran.arrayBuffer())
-      // await writeFile(filePath, buffer)
-      
-      // lampiran_nama = lampiran.name
-      // lampiran_path = `/uploads/lampiran/${uniqueFileName}`
+      const { data: publicUrlData } = supabase.storage
+        .from('lampiran')
+        .getPublicUrl(uniqueFileName)
 
-      import { supabase } from '@/lib/supabase' // pastikan ini ada di atas file
-
-if (lampiran) {
-  const fileExt = lampiran.name.split('.').pop()
-  const uniqueFileName = `${Date.now()}_${lampiran.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-
-  const arrayBuffer = await lampiran.arrayBuffer()
-  const buffer = Buffer.from(arrayBuffer)
-
-  // Upload ke Supabase Storage
-  const { data, error } = await supabase.storage
-    .from('lampiran') // nama bucket kamu
-    .upload(uniqueFileName, buffer, {
-      contentType: lampiran.type,
-      upsert: false,
-    })
-
-  if (error) {
-    console.error('Upload error:', error)
-    return NextResponse.json(
-      { error: 'Gagal upload file ke Supabase', details: error.message },
-      { status: 500 }
-    )
-  }
-
-  // Dapatkan URL publik
-  const { data: publicUrlData } = supabase.storage
-    .from('lampiran')
-    .getPublicUrl(uniqueFileName)
-
-  lampiran_nama = lampiran.name
-  lampiran_path = publicUrlData.publicUrl
-}
+      lampiran_nama = lampiran.name
+      lampiran_path = publicUrlData.publicUrl
     }
 
-    // Buat peminjaman
+    // Simpan data peminjaman
     const peminjaman = await db.peminjaman.create({
       data: {
         id_kendaraan: parseInt(id_kendaraan),
@@ -250,34 +121,20 @@ if (lampiran) {
         kondisi_awal_kebersihan: kendaraan.kebersihan,
         kondisi_awal_bensin: kendaraan.sisa_bensin,
         status: 'Diproses',
-        // Pernyataan
         pernyataan_keperluan_dinas,
         pernyataan_kebersihan,
         pernyataan_tanggung_jawab,
-        // Lampiran
         lampiran_nama,
         lampiran_path
       },
-      include: {
-        kendaraan: true,
-        user_peminjam: {
-          select: {
-            id_user: true,
-            nama_lengkap: true,
-            nip: true,
-            jabatan: true,
-            instansi: true,
-            email: true
-          }
-        }
-      }
+      include: { kendaraan: true, user_peminjam: true }
     })
 
     return NextResponse.json(peminjaman, { status: 201 })
   } catch (error) {
     console.error('Error creating peminjaman:', error)
     return NextResponse.json(
-      { error: 'Terjadi kesalahan saat membuat peminjaman', details: error.message },
+      { error: 'Terjadi kesalahan saat membuat peminjaman', details: (error as Error).message },
       { status: 500 }
     )
   }
