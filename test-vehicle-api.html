@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Vehicle API</title>
+</head>
+<body>
+    <h1>Vehicle API Test</h1>
+    <div id="results"></div>
+    
+    <script>
+        // Test login first
+        fetch('http://localhost:3000/api/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                username: 'admin',
+                password: 'admin123'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Login response:', data);
+            const token = data.token;
+            
+            // Now test vehicles API
+            return fetch('http://localhost:3000/api/kendaraan', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+        })
+        .then(response => response.json())
+        .then(vehicles => {
+            console.log('Vehicles:', vehicles);
+            const available = vehicles.filter(v => v.status === 'Tersedia');
+            document.getElementById('results').innerHTML = `
+                <h2>Results:</h2>
+                <p>Total vehicles: ${vehicles.length}</p>
+                <p>Available vehicles: ${available.length}</p>
+                <ul>
+                    ${available.map(v => `<li>${v.plat_nomor} - ${v.merek} ${v.tipe} (${v.tahun}) - Status: ${v.status}</li>`).join('')}
+                </ul>
+            `;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('results').innerHTML = `<p>Error: ${error.message}</p>`;
+        });
+    </script>
+</body>
+</html>

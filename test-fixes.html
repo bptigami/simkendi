@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Peminjaman Fixes</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Test Peminjaman System Fixes</h1>
+    
+    <div class="test-section">
+        <h2>1. Test Login</h2>
+        <div id="login-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. Test Users API</h2>
+        <div id="users-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. Test Vehicles API</h2>
+        <div id="vehicles-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>4. Test Peminjaman Submit</h2>
+        <div id="submit-result"></div>
+    </div>
+
+    <script>
+        let authToken = '';
+        
+        // Test 1: Login
+        fetch('http://localhost:3000/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: 'admin', password: 'admin123' })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.token) {
+                authToken = data.token;
+                document.getElementById('login-result').innerHTML = 
+                    '<span class="success">✓ Login successful</span>';
+                testUsers();
+                testVehicles();
+            } else {
+                document.getElementById('login-result').innerHTML = 
+                    '<span class="error">✗ Login failed: ' + data.error + '</span>';
+            }
+        })
+        .catch(error => {
+            document.getElementById('login-result').innerHTML = 
+                '<span class="error">✗ Login error: ' + error.message + '</span>';
+        });
+        
+        // Test 2: Users API
+        function testUsers() {
+            fetch('http://localhost:3000/api/users/list', {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.users && data.users.length > 0) {
+                    const user = data.users[0];
+                    document.getElementById('users-result').innerHTML = 
+                        '<span class="success">✓ Users loaded: ' + user.username + 
+                        (user.nip ? ' (' + user.nip + ')' : '') + '</span>';
+                } else {
+                    document.getElementById('users-result').innerHTML = 
+                        '<span class="error">✗ No users found</span>';
+                }
+            })
+            .catch(error => {
+                document.getElementById('users-result').innerHTML = 
+                    '<span class="error">✗ Users error: ' + error.message + '</span>';
+            });
+        }
+        
+        // Test 3: Vehicles API
+        function testVehicles() {
+            fetch('http://localhost:3000/api/kendaraan', {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            })
+            .then(response => response.json())
+            .then(data => {
+                const available = data.filter(v => v.status === 'Tersedia');
+                const layakJalan = available.filter(v => v.kondisi_layak === 'Layak');
+                
+                document.getElementById('vehicles-result').innerHTML = 
+                    '<span class="success">✓ Vehicles: ' + available.length + ' available, ' + 
+                    layakJalan.length + ' layak jalan</span>';
+            })
+            .catch(error => {
+                document.getElementById('vehicles-result').innerHTML = 
+                    '<span class="error">✗ Vehicles error: ' + error.message + '</span>';
+            });
+        }
+        
+        // Test 4: Peminjaman Submit
+        function testSubmit() {
+            fetch('http://localhost:3000/api/peminjaman', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${authToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    id_kendaraan: 2,
+                    id_user_peminjam: 1,
+                    tanggal_pinjam: new Date().toISOString(),
+                    tanggal_kembali_rencana: new Date().toISOString(),
+                    tujuan_penggunaan: 'Test submission',
+                    tujuan_lokasi: 'Test location'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.id_peminjaman) {
+                    document.getElementById('submit-result').innerHTML = 
+                        '<span class="success">✓ Peminjaman submitted successfully (ID: ' + 
+                        data.id_peminjaman + ')</span>';
+                } else {
+                    document.getElementById('submit-result').innerHTML = 
+                        '<span class="error">✗ Submit failed: ' + data.error + '</span>';
+                }
+            })
+            .catch(error => {
+                document.getElementById('submit-result').innerHTML = 
+                    '<span class="error">✗ Submit error: ' + error.message + '</span>';
+            });
+        }
+        
+        // Run submit test after 2 seconds
+        setTimeout(testSubmit, 2000);
+    </script>
+</body>
+</html>
