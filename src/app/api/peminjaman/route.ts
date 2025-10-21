@@ -195,11 +195,45 @@ export async function POST(request: NextRequest) {
       const filePath = join(uploadsDir, uniqueFileName)
       
       // Save file
-      const buffer = Buffer.from(await lampiran.arrayBuffer())
-      await writeFile(filePath, buffer)
+      // const buffer = Buffer.from(await lampiran.arrayBuffer())
+      // await writeFile(filePath, buffer)
       
-      lampiran_nama = lampiran.name
-      lampiran_path = `/uploads/lampiran/${uniqueFileName}`
+      // lampiran_nama = lampiran.name
+      // lampiran_path = `/uploads/lampiran/${uniqueFileName}`
+
+      import { supabase } from '@/lib/supabase' // pastikan ini ada di atas file
+
+if (lampiran) {
+  const fileExt = lampiran.name.split('.').pop()
+  const uniqueFileName = `${Date.now()}_${lampiran.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
+
+  const arrayBuffer = await lampiran.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+
+  // Upload ke Supabase Storage
+  const { data, error } = await supabase.storage
+    .from('lampiran') // nama bucket kamu
+    .upload(uniqueFileName, buffer, {
+      contentType: lampiran.type,
+      upsert: false,
+    })
+
+  if (error) {
+    console.error('Upload error:', error)
+    return NextResponse.json(
+      { error: 'Gagal upload file ke Supabase', details: error.message },
+      { status: 500 }
+    )
+  }
+
+  // Dapatkan URL publik
+  const { data: publicUrlData } = supabase.storage
+    .from('lampiran')
+    .getPublicUrl(uniqueFileName)
+
+  lampiran_nama = lampiran.name
+  lampiran_path = publicUrlData.publicUrl
+}
     }
 
     // Buat peminjaman
