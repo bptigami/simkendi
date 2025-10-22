@@ -1,0 +1,137 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Kendaraan {
+  id_kendaraan    Int     @id @default(autoincrement())
+  plat_nomor      String  @unique
+  merek           String
+  tipe            String
+  tahun           Int
+  kondisi_layak   String  @default("Layak") // Layak, Tidak Layak
+  kebersihan      String  @default("Bersih") // Bersih, Perlu Dibersihkan
+  sisa_bensin     Float   @default(0.0)
+  status          String  @default("Tersedia") // Tersedia, Dipinjam, Dalam Perawatan
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  peminjaman      Peminjaman[]
+
+  @@map("kendaraan")
+}
+
+model Peminjam {
+  id_peminjam     Int     @id @default(autoincrement())
+  nama_peminjam   String
+  nip             String  @unique
+  jabatan         String?
+  instansi        String
+  kontak          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  peminjaman      Peminjaman[]
+
+  @@map("peminjam")
+}
+
+model Peminjaman {
+  id_peminjaman             Int     @id @default(autoincrement())
+  id_kendaraan              Int
+  id_user_peminjam          Int?
+  id_peminjam               Int?
+  id_creator                Int?
+  id_approver               Int?
+  tanggal_pinjam            String
+  tanggal_kembali_rencana   String
+  tujuan_penggunaan         String
+  tujuan_lokasi             String
+  kondisi_awal_layak        String
+  kondisi_awal_kebersihan   String
+  kondisi_awal_bensin       Float
+  status                    String  @default("Diproses") // Diproses, Disetujui, Ditolak, Selesai
+  catatan_approval          String?
+  tanggal_approval          DateTime?
+  // Pernyataan
+  pernyataan_keperluan_dinas Boolean @default(false)
+  pernyataan_kebersihan      Boolean @default(false)
+  pernyataan_tanggung_jawab Boolean @default(false)
+  // Lampiran
+  lampiran_nama             String?
+  lampiran_path             String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  // Relations
+  kendaraan                 Kendaraan @relation(fields: [id_kendaraan], references: [id_kendaraan])
+  user_peminjam             User?     @relation("UserPeminjam", fields: [id_user_peminjam], references: [id_user])
+  peminjam                  Peminjam? @relation(fields: [id_peminjam], references: [id_peminjam])
+  creator                   User?     @relation("PeminjamanCreator", fields: [id_creator], references: [id_user])
+  approver                  User?     @relation("PeminjamanApprover", fields: [id_approver], references: [id_user])
+  pengembalian              Pengembalian?
+
+  @@map("peminjaman")
+}
+
+model User {
+  id_user         Int      @id @default(autoincrement())
+  username        String   @unique
+  email           String   @unique
+  password_hash   String
+  nama_lengkap    String
+  nip             String?  @unique
+  jabatan         String?
+  instansi        String?
+  role            Role     @default(USER)
+  is_active       Boolean  @default(true)
+  last_login      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  peminjaman_created     Peminjaman[]  @relation("PeminjamanCreator")
+  peminjaman_approved    Peminjaman[]  @relation("PeminjamanApprover")
+  peminjaman_user        Peminjaman[]  @relation("UserPeminjam")
+  pengembalian_created   Pengembalian[]
+
+  @@map("users")
+}
+
+enum Role {
+  ADMIN       // Admin sistem - akses penuh
+  PIMPINAN    // Pimpinan - bisa approve, lihat laporan
+  PETUGAS     // Petugas - input data, manage kendaraan
+  USER        // User biasa - hanya ajukan peminjaman
+}
+
+model Pengembalian {
+  id_pengembalian           Int     @id @default(autoincrement())
+  id_peminjaman             Int     @unique
+  tanggal_kembali           String
+  kondisi_akhir_layak       String
+  kondisi_akhir_kebersihan  String
+  kondisi_akhir_bensin      Float
+  catatan_petugas           String?
+  id_petugas                Int?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  // Relations
+  peminjaman                Peminjaman @relation(fields: [id_peminjaman], references: [id_peminjaman])
+  petugas                   User?      @relation(fields: [id_petugas], references: [id_user])
+
+  @@map("pengembalian")
+}
