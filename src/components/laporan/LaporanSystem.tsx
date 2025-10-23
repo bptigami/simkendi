@@ -140,23 +140,36 @@ export default function LaporanSystem() {
       const pageHeight = pdf.internal.pageSize.getHeight()
       
       // Header with logo placeholder (square box for now)
-      pdf.setFillColor(200, 200, 200)
-      pdf.rect(15, 10, 30, 30, 'F')
-      pdf.setFontSize(8)
-      pdf.setFont('helvetica', 'italic')
-      pdf.text('LOGO', 30, 25, { align: 'center' })
+       const logoUrl = '/logo_kp2mi.png'
+  const logoResponse = await fetch(logoUrl)
+  const logoBlob = await logoResponse.blob()
+  const logoBase64 = await new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onloadend = () => resolve(reader.result)
+    reader.readAsDataURL(logoBlob)
+  })
+
+  // Tambahkan logo ke PDF (posisi x=15, y=10, ukuran 30x30 mm)
+  pdf.addImage(logoBase64, 'PNG', 15, 10, 30, 30)
       
       // Kop surat
-      pdf.setFontSize(12)
-      pdf.setFont('helvetica', 'bold')
-      pdf.text('BADAN PELAYANAN PENEMPATAN DAN PERLINDUNGAN', pageWidth / 2, 20, { align: 'center' })
-      pdf.text('PEKERJA MIGRAN INDONESIA', pageWidth / 2, 26, { align: 'center' })
-      pdf.text('BP3MI JAWA TENGAH', pageWidth / 2, 32, { align: 'center' })
-      
-      pdf.setFontSize(9)
-      pdf.setFont('helvetica', 'normal')
-      pdf.text('Jl. Kalipepe III/64 Pundak Payung, Semarang, Provinsi Jawa Tengah 50236', pageWidth / 2, 38, { align: 'center' })
-      pdf.text('Tlp. 024-70799273 | Fax. 024-7477223', pageWidth / 2, 43, { align: 'center' })
+     let textX = 50 // mulai agak kanan setelah logo (15 + 30 + 5)
+let textY = 15
+
+pdf.setFontSize(12)
+pdf.setFont('helvetica', 'normal')
+pdf.text('KEMENTERIAN PELINDUNGAN PEKERJA MIGRAN INDONESIA/', textX, textY)
+pdf.text('BADAN PELINDUNGAN PEKERJA MIGRAN INDONESIA', textX, textY + 6)
+
+pdf.setFontSize(12)
+pdf.setFont('helvetica', 'bold')
+pdf.text('BALAI PELAYANAN PELINDUNGAN PEKERJA MIGRAN INDONESIA –', textX, textY + 12)
+pdf.text('JAWA TENGAH', textX, textY + 18)
+
+pdf.setFontSize(10)
+pdf.setFont('helvetica', 'normal')
+pdf.text('Jalan Kalipepe III No.64 Pudakpayung, Banyumanik, Kota Semarang, Jawa Tengah 50265', textX, textY + 24)
+pdf.text('Telepon: (024) 76481772, email: bp3mi.jateng@bp2mi.go.id', textX, textY + 29)
       
       // Garis
       pdf.setLineWidth(0.5)
@@ -183,80 +196,7 @@ export default function LaporanSystem() {
       
       let yPosition = 80
       
-      // Statistik
-      pdf.setFontSize(12)
-      pdf.setFont('helvetica', 'bold')
-      pdf.text('RINGKASAN STATISTIK', 15, yPosition)
-      yPosition += 8
-      
-      pdf.setFontSize(10)
-      pdf.setFont('helvetica', 'normal')
-      pdf.text(`Total Peminjaman: ${reportData.stats.total}`, 20, yPosition)
-      yPosition += 6
-      pdf.text(`Disetujui: ${reportData.stats.disetujui} (${reportData.stats.total > 0 ? Math.round((reportData.stats.disetujui / reportData.stats.total) * 100) : 0}%)`, 20, yPosition)
-      yPosition += 6
-      pdf.text(`Ditolak: ${reportData.stats.ditolak} (${reportData.stats.total > 0 ? Math.round((reportData.stats.ditolak / reportData.stats.total) * 100) : 0}%)`, 20, yPosition)
-      yPosition += 6
-      pdf.text(`Diproses: ${reportData.stats.diproses} (${reportData.stats.total > 0 ? Math.round((reportData.stats.diproses / reportData.stats.total) * 100) : 0}%)`, 20, yPosition)
-      yPosition += 6
-      pdf.text(`Selesai: ${reportData.stats.selesai} (${reportData.stats.total > 0 ? Math.round((reportData.stats.selesai / reportData.stats.total) * 100) : 0}%)`, 20, yPosition)
-      yPosition += 6
-      pdf.text(`Rata-rata Durasi: ${reportData.stats.rataRataDurasi} hari`, 20, yPosition)
-      yPosition += 12
-      
-      // Top Lokasi
-      if (reportData.lokasiStats.length > 0) {
-        pdf.setFontSize(12)
-        pdf.setFont('helvetica', 'bold')
-        pdf.text('LOKASI TERPOPULER', 15, yPosition)
-        yPosition += 8
-        
-        pdf.setFontSize(10)
-        pdf.setFont('helvetica', 'normal')
-        reportData.lokasiStats.slice(0, 5).forEach((item) => {
-          pdf.text(`• ${item.lokasi}: ${item.count} peminjaman`, 20, yPosition)
-          yPosition += 6
-        })
-        yPosition += 6
-      }
-      
-      // Top Kendaraan
-      if (reportData.kendaraanStats.length > 0) {
-        pdf.setFontSize(12)
-        pdf.setFont('helvetica', 'bold')
-        pdf.text('KENDARAAN TERPOPULER', 15, yPosition)
-        yPosition += 8
-        
-        pdf.setFontSize(10)
-        pdf.setFont('helvetica', 'normal')
-        reportData.kendaraanStats.slice(0, 5).forEach((item) => {
-          pdf.text(`• ${item.kendaraan}: ${item.count} peminjaman`, 20, yPosition)
-          yPosition += 6
-        })
-        yPosition += 6
-      }
-      
-      // Top Peminjam
-      if (reportData.peminjamStats.length > 0) {
-        pdf.setFontSize(12)
-        pdf.setFont('helvetica', 'bold')
-        pdf.text('PEMINJAM TERAKTIF', 15, yPosition)
-        yPosition += 8
-        
-        pdf.setFontSize(10)
-        pdf.setFont('helvetica', 'normal')
-        reportData.peminjamStats.slice(0, 5).forEach((item) => {
-          pdf.text(`• ${item.peminjam}: ${item.count} peminjaman`, 20, yPosition)
-          yPosition += 6
-        })
-        yPosition += 6
-      }
-      
-      // New page for detail table
-      pdf.addPage()
-      yPosition = 20
-      
-      pdf.setFontSize(12)
+ pdf.setFontSize(12)
       pdf.setFont('helvetica', 'bold')
       pdf.text('DETAIL PEMINJAMAN', 15, yPosition)
       yPosition += 10
@@ -329,6 +269,82 @@ export default function LaporanSystem() {
         pdf.text(peminjaman.status, xPos, yPosition)
         yPosition += 5
       })
+
+      pdf.addPage()
+      yPosition = 20
+      
+      // Statistik
+      pdf.setFontSize(12)
+      pdf.setFont('helvetica', 'bold')
+      pdf.text('RINGKASAN STATISTIK', 15, yPosition)
+      yPosition += 8
+      
+      pdf.setFontSize(10)
+      pdf.setFont('helvetica', 'normal')
+      pdf.text(`Total Peminjaman: ${reportData.stats.total}`, 20, yPosition)
+      yPosition += 6
+      pdf.text(`Disetujui: ${reportData.stats.disetujui} (${reportData.stats.total > 0 ? Math.round((reportData.stats.disetujui / reportData.stats.total) * 100) : 0}%)`, 20, yPosition)
+      yPosition += 6
+      pdf.text(`Ditolak: ${reportData.stats.ditolak} (${reportData.stats.total > 0 ? Math.round((reportData.stats.ditolak / reportData.stats.total) * 100) : 0}%)`, 20, yPosition)
+      yPosition += 6
+      pdf.text(`Diproses: ${reportData.stats.diproses} (${reportData.stats.total > 0 ? Math.round((reportData.stats.diproses / reportData.stats.total) * 100) : 0}%)`, 20, yPosition)
+      yPosition += 6
+      pdf.text(`Selesai: ${reportData.stats.selesai} (${reportData.stats.total > 0 ? Math.round((reportData.stats.selesai / reportData.stats.total) * 100) : 0}%)`, 20, yPosition)
+      yPosition += 6
+      pdf.text(`Rata-rata Durasi: ${reportData.stats.rataRataDurasi} hari`, 20, yPosition)
+      yPosition += 12
+      
+      // Top Lokasi
+      if (reportData.lokasiStats.length > 0) {
+        pdf.setFontSize(12)
+        pdf.setFont('helvetica', 'bold')
+        pdf.text('LOKASI TERPOPULER', 15, yPosition)
+        yPosition += 8
+        
+        pdf.setFontSize(10)
+        pdf.setFont('helvetica', 'normal')
+        reportData.lokasiStats.slice(0, 5).forEach((item) => {
+          pdf.text(`• ${item.lokasi}: ${item.count} peminjaman`, 20, yPosition)
+          yPosition += 6
+        })
+        yPosition += 6
+      }
+      
+      // Top Kendaraan
+      if (reportData.kendaraanStats.length > 0) {
+        pdf.setFontSize(12)
+        pdf.setFont('helvetica', 'bold')
+        pdf.text('KENDARAAN TERPOPULER', 15, yPosition)
+        yPosition += 8
+        
+        pdf.setFontSize(10)
+        pdf.setFont('helvetica', 'normal')
+        reportData.kendaraanStats.slice(0, 5).forEach((item) => {
+          pdf.text(`• ${item.kendaraan}: ${item.count} peminjaman`, 20, yPosition)
+          yPosition += 6
+        })
+        yPosition += 6
+      }
+      
+      // Top Peminjam
+      if (reportData.peminjamStats.length > 0) {
+        pdf.setFontSize(12)
+        pdf.setFont('helvetica', 'bold')
+        pdf.text('PEMINJAM TERAKTIF', 15, yPosition)
+        yPosition += 8
+        
+        pdf.setFontSize(10)
+        pdf.setFont('helvetica', 'normal')
+        reportData.peminjamStats.slice(0, 5).forEach((item) => {
+          pdf.text(`• ${item.peminjam}: ${item.count} peminjaman`, 20, yPosition)
+          yPosition += 6
+        })
+        yPosition += 6
+      }
+      
+      // New page for detail table
+
+     
       
       // Footer
       const totalPages = pdf.internal.getNumberOfPages()
