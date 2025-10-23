@@ -104,6 +104,7 @@ export default function PengembalianSystem() {
       if (!response.ok) throw new Error('Gagal mengambil data peminjaman')
       
       const data = await response.json()
+      console.log('Pengembalian - Fetched data:', data)
       setPeminjamanList(data)
     } catch (error) {
       console.error('Error fetching peminjaman:', error)
@@ -350,7 +351,12 @@ export default function PengembalianSystem() {
                         <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-gray-500" />
                           <span className="text-sm font-medium">Tanggal Kembali:</span>
-                          <span className="text-sm">{peminjaman.pengembalian?.tanggal_kembali}</span>
+                          <span className="text-sm">
+                            {peminjaman.pengembalian?.tanggal_kembali 
+                              ? new Date(peminjaman.pengembalian.tanggal_kembali).toLocaleDateString('id-ID')
+                              : '-'
+                            }
+                          </span>
                         </div>
                       </div>
                       <div className="space-y-2">
@@ -364,7 +370,12 @@ export default function PengembalianSystem() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">Bensin Akhir:</span>
-                          <span className="text-sm">{peminjaman.pengembalian?.kondisi_akhir_bensin} L</span>
+                          <span className="text-sm">
+                            {peminjaman.pengembalian?.kondisi_akhir_bensin 
+                              ? `${peminjaman.pengembalian.kondisi_akhir_bensin} L` 
+                              : '-'
+                            }
+                          </span>
                         </div>
                       </div>
                     </div>

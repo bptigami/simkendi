@@ -75,7 +75,7 @@ export default function LaporanSystem() {
     if (reportData) {
       const filtered = reportData.peminjaman.filter(peminjaman =>
         peminjaman.plat_nomor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (peminjaman.user_peminjam?.nama_lengkap || peminjaman.peminjam?.nama_peminjam || 'Tidak diketahui').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (peminjaman.nama_peminjam || 'Tidak diketahui').toLowerCase().includes(searchTerm.toLowerCase()) ||
         peminjaman.tujuan_penggunaan.toLowerCase().includes(searchTerm.toLowerCase()) ||
         peminjaman.tujuan_lokasi.toLowerCase().includes(searchTerm.toLowerCase())
       )
@@ -313,7 +313,8 @@ export default function LaporanSystem() {
         pdf.text(peminjaman.plat_nomor.length > 8 ? peminjaman.plat_nomor.substring(0, 8) + '...' : peminjaman.plat_nomor, xPos, yPosition)
         xPos += columnWidths[1]
         
-        pdf.text((peminjaman.user_peminjam?.nama_lengkap || peminjaman.peminjam?.nama_peminjam || 'Tidak diketahui').length > 12 ? (peminjaman.user_peminjam?.nama_lengkap || peminjaman.peminjam?.nama_peminjam || 'Tidak diketahui').substring(0, 12) + '...' : (peminjaman.user_peminjam?.nama_lengkap || peminjaman.peminjam?.nama_peminjam || 'Tidak diketahui'), xPos, yPosition)
+        const namaPeminjam = peminjaman.nama_peminjam || 'Tidak diketahui'
+        pdf.text(namaPeminjam.length > 12 ? namaPeminjam.substring(0, 12) + '...' : namaPeminjam, xPos, yPosition)
         xPos += columnWidths[2]
         
         pdf.text(new Date(peminjaman.tanggal_pinjam).toLocaleDateString('id-ID'), xPos, yPosition)
@@ -610,7 +611,7 @@ export default function LaporanSystem() {
                         </td>
                         <td className="p-2">
                           <div>
-                            <div className="font-medium">{peminjaman.user_peminjam?.nama_lengkap || peminjaman.peminjam?.nama_peminjam || 'Tidak diketahui'}</div>
+                            <div className="font-medium">{peminjaman.nama_peminjam || 'Tidak diketahui'}</div>
                             <div className="text-xs text-gray-500">{peminjaman.nip}</div>
                           </div>
                         </td>

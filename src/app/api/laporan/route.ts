@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
       include: {
         kendaraan: true,
         user_peminjam: true,
+        peminjam: true,
         pengembalian: true
       },
       orderBy: {
@@ -108,7 +109,7 @@ export async function GET(request: NextRequest) {
         plat_nomor: p.kendaraan.plat_nomor,
         merek: p.kendaraan.merek,
         tipe: p.kendaraan.tipe,
-        nama_peminjam: p.user_peminjam.nama_lengkap,
+        nama_peminjam: p.user_peminjam?.nama_lengkap || p.peminjam?.nama_peminjam || 'Tidak diketahui',
         nip: p.user_peminjam.nip || '',
         jabatan: p.user_peminjam.jabatan || '',
         instansi: p.user_peminjam.instansi || '',

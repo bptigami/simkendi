@@ -40,7 +40,8 @@ export async function GET() {
             nama_lengkap: true,
             email: true
           }
-        }
+        },
+        pengembalian: true
       },
       orderBy: {
         createdAt: 'desc'
