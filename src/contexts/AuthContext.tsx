@@ -125,13 +125,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         'pengembalian', 'riwayat-peminjaman', 'laporan', 'users', 'settings'
       ],
       PIMPINAN: [
-        'dashboard', 'peminjaman', 'approval', 'riwayat-peminjaman', 'laporan'
+        'dashboard', 'peminjaman', 'approval', 'riwayat-peminjaman', 'laporan', 'settings'
       ],
       PETUGAS: [
-        'dashboard', 'kendaraan', 'peminjaman', 'pengembalian', 'riwayat-peminjaman'
+        'dashboard', 'kendaraan', 'peminjaman', 'pengembalian', 'riwayat-peminjaman', 'settings'
       ],
       USER: [
-        'dashboard', 'peminjaman', 'riwayat-peminjaman'
+        'dashboard', 'peminjaman', 'riwayat-peminjaman', 'settings'
       ]
     }
 

@@ -62,7 +62,7 @@ export default function SetupPage() {
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex items-center justify-center">
             <img 
-              src="https://bp2mi.go.id/assets/dist/img/logo_kp2mi-ntxt.png" 
+              src="https://kp2mi.go.id/assets/dist/img/logo_kp2mi-ntxt.png" 
               alt="Sim-Kendi Logo" 
               className="h-16 w-16"
             />

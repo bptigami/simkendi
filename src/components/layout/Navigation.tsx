@@ -102,7 +102,6 @@ export function Navigation({ children }: NavigationProps) {
       name: 'Settings',
       href: '/settings',
       icon: Settings,
-      requiredRole: 'ADMIN',
       resource: 'settings'
     }
   ]
@@ -162,7 +161,7 @@ export function Navigation({ children }: NavigationProps) {
         <div className="flex flex-col flex-grow bg-white border-r border-gray-200 pt-5 pb-4 overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-4">
             <img 
-              src="https://bp2mi.go.id/assets/dist/img/logo_kp2mi-ntxt.png" 
+              src="https://kp2mi.go.id/assets/dist/img/logo_kp2mi-ntxt.png" 
               alt="Sim-Kendi Logo" 
               className="h-8 w-8"
             />
@@ -204,7 +203,7 @@ export function Navigation({ children }: NavigationProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <img 
-                src="https://bp2mi.go.id/assets/dist/img/logo_kp2mi-ntxt.png" 
+                src="https://kp2mi.go.id/assets/dist/img/logo_kp2mi-ntxt.png" 
                 alt="Sim-Kendi Logo" 
                 className="h-6 w-6"
               />
