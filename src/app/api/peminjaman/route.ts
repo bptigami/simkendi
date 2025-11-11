@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { put } from '@vercel/blob'
 
+
 export async function GET() {
   try {
     const peminjaman = await db.peminjaman.findMany({
@@ -48,16 +49,19 @@ export async function GET() {
       }
     })
 
+     // Transform data to ensure consistent structure
     const transformedPeminjaman = peminjaman.map(p => ({
       ...p,
+      // Prioritize peminjam data over user_peminjam
       user_peminjam: p.peminjam ? {
         id_user: p.peminjam.id_peminjam,
         nama_lengkap: p.peminjam.nama_peminjam,
         nip: p.peminjam.nip,
         jabatan: p.peminjam.jabatan,
         instansi: p.peminjam.instansi,
-        email: ''
+        email: '' // Peminjam doesn't have email
       } : p.user_peminjam || null,
+      // Add peminjam fallback for compatibility
       peminjam: p.peminjam || (p.user_peminjam ? {
         id_peminjam: p.user_peminjam.id_user,
         nama_peminjam: p.user_peminjam.nama_lengkap,
@@ -80,6 +84,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     
+    // Extract form fields
     const id_kendaraan = formData.get('id_kendaraan') as string
     const id_user_peminjam = formData.get('id_user_peminjam') as string
     const id_creator = formData.get('id_creator') as string
@@ -92,35 +97,107 @@ export async function POST(request: NextRequest) {
     const pernyataan_tanggung_jawab = formData.get('pernyataan_tanggung_jawab') === 'true'
     const lampiran = formData.get('lampiran') as File | null
 
+    console.log('Peminjaman request data:', {
+      id_kendaraan,
+      id_user_peminjam,
+      id_creator,
+      tanggal_pinjam,
+      tanggal_kembali_rencana,
+      tujuan_penggunaan,
+      tujuan_lokasi,
+      pernyataan_keperluan_dinas,
+      pernyataan_kebersihan,
+      pernyataan_tanggung_jawab,
+      lampiran: lampiran ? lampiran.name : null
+    })
+
     // Validasi input
     if (!id_kendaraan || !id_user_peminjam || !tanggal_pinjam || !tanggal_kembali_rencana || !tujuan_penggunaan || !tujuan_lokasi) {
-      return NextResponse.json({ error: 'Semua field harus diisi' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Semua field harus diisi' },
+        { status: 400 }
+      )
     }
 
+    // Validasi format tanggal
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/
     if (!dateRegex.test(tanggal_pinjam) || !dateRegex.test(tanggal_kembali_rencana)) {
-      return NextResponse.json({ error: 'Format tanggal tidak valid. Gunakan format YYYY-MM-DD' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Format tanggal tidak valid. Gunakan format YYYY-MM-DD' },
+        { status: 400 }
+      )
     }
 
+    // Validasi pernyataan
     if (!pernyataan_keperluan_dinas || !pernyataan_kebersihan || !pernyataan_tanggung_jawab) {
-      return NextResponse.json({ error: 'Semua pernyataan harus disetujui' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Semua pernyataan harus disetujui' },
+        { status: 400 }
+      )
     }
 
+    // Validasi tanggal
     if (new Date(tanggal_kembali_rencana) < new Date(tanggal_pinjam)) {
-      return NextResponse.json({ error: 'Tanggal kembali tidak boleh sebelum tanggal pinjam' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Tanggal kembali tidak boleh sebelum tanggal pinjam' },
+        { status: 400 }
+      )
     }
 
-    const kendaraan = await db.kendaraan.findUnique({
+     const kendaraan = await db.kendaraan.findUnique({
       where: { id_kendaraan: parseInt(id_kendaraan) }
     })
 
     if (!kendaraan) {
-      return NextResponse.json({ error: 'Kendaraan tidak ditemukan' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Kendaraan tidak ditemukan' },
+        { status: 404 }
+      )
     }
 
-    if (kendaraan.status !== 'Tersedia') {
-      return NextResponse.json({ error: 'Kendaraan tidak tersedia untuk dipinjam' }, { status: 400 })
+    // Cek apakah kendaraan sedang dalam perawatan
+    if (kendaraan.status === 'Dalam Perawatan') {
+      return NextResponse.json(
+        { error: 'Kendaraan sedang dalam perawatan dan tidak dapat dipinjam' },
+        { status: 400 }
+      )
     }
+
+    // Cek konflik jadwal dengan peminjaman yang sudah ada
+    const conflictingPeminjaman = await db.peminjaman.findMany({
+      where: {
+        AND: [
+          { id_kendaraan: parseInt(id_kendaraan) },
+          // Peminjaman yang overlap dengan tanggal baru
+          {
+            AND: [
+              { tanggal_pinjam: { lte: tanggal_kembali_rencana } },
+              { 
+                OR: [
+                  { tanggal_kembali_rencana: { gte: tanggal_pinjam } }
+                ]
+              }
+            ]
+          },
+          // Hanya status yang benar-benar mengikat kendaraan (Disetujui dan Dipinjamkan)
+          // Status "Diproses" tidak memblokir karena belum disetujui
+          { status: { in: ['Disetujui', 'Dipinjamkan', 'Dalam Perawatan'] } },
+          // Belum ada pengembalian
+          { pengembalian: null }
+        ]
+      }
+    })
+
+    if (conflictingPeminjaman.length > 0) {
+      const conflict = conflictingPeminjaman[0]
+      return NextResponse.json(
+        { 
+          error: `Kendaraan sudah dipinjam untuk tanggal tersebut. Konflik dengan peminjaman dari ${conflict.tanggal_pinjam} hingga ${conflict.tanggal_kembali_rencana}` 
+        },
+        { status: 400 }
+      )
+    }
+
 
     const user = await db.user.findUnique({
       where: { id_user: parseInt(id_user_peminjam) }

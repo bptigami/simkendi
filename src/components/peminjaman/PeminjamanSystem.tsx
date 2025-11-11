@@ -84,6 +84,7 @@ export default function PeminjamanSystem() {
   const [error, setError] = useState('')
   const [dataLoading, setDataLoading] = useState(true)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [activePeminjaman, setActivePeminjaman] = useState<any>(null)
 
   // Handle file upload
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,6 +134,39 @@ export default function PeminjamanSystem() {
     }
   }, [user])
 
+  // Fetch active peminjaman when vehicle changes
+  useEffect(() => {
+    if (kendaraan) {
+      fetchActivePeminjaman(kendaraan.id_kendaraan)
+    }
+  }, [kendaraan])
+
+  // Fetch available vehicles when dates change
+  useEffect(() => {
+    if (peminjaman.tanggal_mulai && peminjaman.tanggal_selesai) {
+      fetchAvailableVehicles(peminjaman.tanggal_mulai, peminjaman.tanggal_selesai)
+    }
+  }, [peminjaman.tanggal_mulai, peminjaman.tanggal_selesai])
+
+  // Auto-select first available vehicle when list changes
+  useEffect(() => {
+    if (availableVehicles.length > 0) {
+      // Check if current selected vehicle is still available
+      const isCurrentVehicleAvailable = peminjaman.kendaraan_id && 
+        availableVehicles.some(v => v.id_kendaraan === peminjaman.kendaraan_id)
+      
+      if (!isCurrentVehicleAvailable) {
+        // Auto-select first vehicle
+        setKendaraan(availableVehicles[0])
+        setPeminjaman(prev => ({ ...prev, kendaraan_id: availableVehicles[0].id_kendaraan }))
+      }
+    } else {
+      // No vehicles available, clear selection
+      setKendaraan(null)
+      setPeminjaman(prev => ({ ...prev, kendaraan_id: 0 }))
+    }
+  }, [availableVehicles])
+
   const fetchUsers = async () => {
     try {
       const token = localStorage.getItem('auth_token')
@@ -151,10 +185,28 @@ export default function PeminjamanSystem() {
     }
   }
 
-  const fetchAvailableVehicles = async () => {
+  const fetchAvailableVehicles = async (tanggalMulai?: Date, tanggalSelesai?: Date) => {
     try {
       const token = localStorage.getItem('auth_token')
-      const response = await fetch('/api/kendaraan', {
+      
+      // Build URL with date parameters if provided
+      let url = '/api/kendaraan/available-today'
+      if (tanggalMulai && tanggalSelesai) {
+        const formatDate = (date: Date) => {
+          const year = date.getFullYear()
+          const month = String(date.getMonth() + 1).padStart(2, '0')
+          const day = String(date.getDate()).padStart(2, '0')
+          return `${year}-${month}-${day}`
+        }
+        
+        const params = new URLSearchParams({
+          tanggal_mulai: formatDate(tanggalMulai),
+          tanggal_selesai: formatDate(tanggalSelesai)
+        })
+        url += `?${params.toString()}`
+      }
+      
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -162,19 +214,36 @@ export default function PeminjamanSystem() {
       })
       if (response.ok) {
         const data = await response.json()
-        const available = data.filter((v: Kendaraan) => v.status === 'Tersedia')
-        setAvailableVehicles(available)
-        
-        // Auto-select first vehicle if available
-        if (available.length > 0) {
-          setKendaraan(available[0])
-          setPeminjaman(prev => ({ ...prev, kendaraan_id: available[0].id_kendaraan }))
-        }
+        setAvailableVehicles(data)
       }
     } catch (error) {
       console.error('Error fetching vehicles:', error)
     } finally {
       setDataLoading(false)
+    }
+  }
+
+  const fetchActivePeminjaman = async (vehicleId: number) => {
+    try {
+      const token = localStorage.getItem('auth_token')
+      const response = await fetch('/api/peminjaman', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
+      })
+      if (response.ok) {
+        const data = await response.json()
+        // Find active peminjaman for this vehicle
+        const activePeminjamanForVehicle = data.find((p: any) => 
+          p.id_kendaraan === vehicleId && 
+          ['Disetujui', 'Dipinjamkan', 'Diproses'].includes(p.status) &&
+          !p.pengembalian
+        )
+        setActivePeminjaman(activePeminjamanForVehicle || null)
+      }
+    } catch (error) {
+      console.error('Error fetching active peminjaman:', error)
     }
   }
 
@@ -185,18 +254,29 @@ export default function PeminjamanSystem() {
     setMessage('')
 
     try {
+      // Format dates to YYYY-MM-DD format
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      }
+
       // Log data for debugging
       console.log('Submitting peminjaman:', {
         id_user_peminjam: peminjaman.id_user_peminjam,
         kendaraan_id: peminjaman.kendaraan_id,
         tanggal_mulai: peminjaman.tanggal_mulai,
         tanggal_selesai: peminjaman.tanggal_selesai,
+        formatted_tanggal_mulai: formatDate(peminjaman.tanggal_mulai),
+        formatted_tanggal_selesai: formatDate(peminjaman.tanggal_selesai),
         tujuan_penggunaan: peminjaman.tujuan_penggunaan,
         tujuan_lokasi: peminjaman.tujuan_lokasi,
         pernyataan_keperluan_dinas: peminjaman.pernyataan_keperluan_dinas,
         pernyataan_kebersihan: peminjaman.pernyataan_kebersihan,
         pernyataan_tanggung_jawab: peminjaman.pernyataan_tanggung_jawab,
-        lampiran_file: peminjaman.lampiran_file?.name
+        lampiran_file: peminjaman.lampiran_file?.name,
+        available_vehicles: availableVehicles.length
       })
 
       // Validasi
@@ -225,6 +305,12 @@ export default function PeminjamanSystem() {
         return
       }
 
+      // Check if there are available vehicles for the selected dates
+      if (availableVehicles.length === 0) {
+        setError('Tidak ada kendaraan tersedia untuk tanggal yang dipilih. Silakan pilih tanggal lain.')
+        return
+      }
+
       // Validasi pernyataan
       if (!peminjaman.pernyataan_keperluan_dinas) {
         setError('Anda harus menyetujui pernyataan keperluan dinas')
@@ -245,14 +331,6 @@ export default function PeminjamanSystem() {
       const formData = new FormData()
       formData.append('id_kendaraan', peminjaman.kendaraan_id.toString())
       formData.append('id_user_peminjam', peminjaman.id_user_peminjam!.toString())
-      
-      // Format dates to YYYY-MM-DD format
-      const formatDate = (date: Date) => {
-        const year = date.getFullYear()
-        const month = String(date.getMonth() + 1).padStart(2, '0')
-        const day = String(date.getDate()).padStart(2, '0')
-        return `${year}-${month}-${day}`
-      }
       
       formData.append('tanggal_pinjam', formatDate(peminjaman.tanggal_mulai))
       formData.append('tanggal_kembali_rencana', formatDate(peminjaman.tanggal_selesai))
@@ -302,8 +380,8 @@ export default function PeminjamanSystem() {
           lampiran_nama: ''
         })
         
-        // Refresh available vehicles
-        fetchAvailableVehicles()
+        // Refresh available vehicles with current dates
+        fetchAvailableVehicles(peminjaman.tanggal_mulai, peminjaman.tanggal_selesai)
       } else {
         const errorData = await response.json()
         setError(errorData.message || 'Gagal mengajukan peminjaman')
@@ -421,11 +499,18 @@ export default function PeminjamanSystem() {
                       ))
                     ) : (
                       <SelectItem value="no-vehicles" disabled>
-                        Tidak ada kendaraan tersedia
+                        {peminjaman.tanggal_mulai && peminjaman.tanggal_selesai 
+                          ? "Tidak ada kendaraan tersedia untuk tanggal ini" 
+                          : "Tidak ada kendaraan tersedia"}
                       </SelectItem>
                     )}
                   </SelectContent>
                 </Select>
+                {availableVehicles.length === 0 && peminjaman.tanggal_mulai && peminjaman.tanggal_selesai && (
+                  <p className="text-xs text-muted-foreground">
+                    Semua kendaraan sudah dipinjam untuk tanggal yang dipilih. Silakan pilih tanggal lain.
+                  </p>
+                )}
               </div>
 
               {/* Tanggal */}
@@ -672,6 +757,31 @@ export default function PeminjamanSystem() {
                     {kendaraan.status}
                   </Badge>
                 </div>
+
+                {/* Keterangan Status */}
+                {kendaraan.status === 'Tersedia' && (
+                  <Alert className="bg-green-50 border-green-200">
+                    <AlertDescription className="text-green-800">
+                      🟢 Kendaraan tersedia untuk di pinjam
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {activePeminjaman && activePeminjaman.status === 'Diproses' && (
+                  <Alert className="bg-yellow-50 border-yellow-200">
+                    <AlertDescription className="text-yellow-800">
+                      🟡 Ada pengajuan peminjaman lain untuk kendaraan ini pada tanggal {format(new Date(activePeminjaman.tanggal_pinjam), 'PPP', { locale: id })} yang masih menunggu approval. Anda tetap bisa mengajukan peminjaman untuk tanggal lain.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {activePeminjaman && ['Disetujui', 'Dipinjamkan'].includes(activePeminjaman.status) && (
+                  <Alert className="bg-red-50 border-red-200">
+                    <AlertDescription className="text-red-800">
+                      🔴 Kendaraan di pinjam pada tanggal {format(new Date(activePeminjaman.tanggal_pinjam), 'PPP', { locale: id })}
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex items-center gap-2">
